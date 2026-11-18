@@ -40,6 +40,22 @@ export function byPath(a, b) {
 }
 
 /**
+ * The run name to send as the manifest's `folder` for an already-validated
+ * file list: the shared top-level folder of a folder drop/pick, or, for
+ * loose files (paths with no '/'), the first file's name without its FITS
+ * extension -- telescope file names usually carry the target, which a bare
+ * "run" would not. validateFound guarantees the list is one or the other;
+ * the list is sorted, so "first" is stable. The kernel sanitizes the name
+ * and disambiguates repeats ("x", "x (1)", ...).
+ */
+export function manifestFolder(files) {
+  if (files.length === 0) return undefined;
+  const parts = files[0].path.split('/');
+  if (parts.length > 1) return parts[0];
+  return parts[0].replace(/\.(fits|fit|fts)$/i, '');
+}
+
+/**
  * Recursively walk an array of FileSystemEntry objects (as produced by
  * DataTransferItem.webkitGetAsEntry()) and resolve to a sorted array of
  * { path, file } for every FITS file found.
@@ -1424,9 +1440,8 @@ function renderDropZone({ model, el, signal }) {
     model.send({
       type: 'manifest',
       // validateFound has already enforced either a single shared top-level
-      // folder or all loose files. Loose files have no folder to send, and
-      // the kernel names that run "run".
-      folder: files[0].path.includes('/') ? files[0].path.split('/')[0] : undefined,
+      // folder or all loose files; loose files are named after the first one.
+      folder: manifestFolder(files),
       files: files.map((f) => ({ name: basename(f.path), size: f.file.size })),
     });
     // The run is live from here (not from `uploading`, which also covers

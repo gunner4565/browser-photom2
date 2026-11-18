@@ -6,6 +6,7 @@ import {
   collectEntries,
   sliceChunks,
   validateFound,
+  manifestFolder,
   byPath,
   pickRun,
   makeErrorLatch,
@@ -343,6 +344,22 @@ test('validateFound rejects loose files mixed with a folder', () => {
     ok: false,
     message: 'Choose either one folder or some files, not both.',
   });
+});
+
+test('manifestFolder names a folder pick after the folder and loose files after the first file', () => {
+  assert.equal(
+    manifestFolder([{ path: 'roll/a.fits' }, { path: 'roll/b.fits' }]),
+    'roll'
+  );
+  assert.equal(
+    manifestFolder([
+      { path: 'Light_T CrB_10.0s_IRCUT_20250818-205901.fit' },
+      { path: 'Light_T CrB_10.0s_IRCUT_20250818-205911.fit' },
+    ]),
+    'Light_T CrB_10.0s_IRCUT_20250818-205901'
+  );
+  assert.equal(manifestFolder([{ path: 'b.FITS' }]), 'b');
+  assert.equal(manifestFolder([]), undefined);
 });
 
 test('validateFound passes a single folder with multiple files through unchanged', () => {
