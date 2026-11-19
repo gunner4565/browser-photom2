@@ -54,7 +54,7 @@ process.stdout.write(JSON.stringify(out));
 
 
 def _header(**kw):
-    args = dict(report_id="0123456789abcdef0123456789abcdef", obscode="lgeb",
+    args = dict(report_id="0123456789abcdef0123456789abcdef", obscode="xxxx",
                 site_lat=39.7, site_lon=-105.2, build="bandaid-d6ba44a.browser-photom-4840cff",
                 qa_schema=1, comment="", n_total=3, n_processed=1, n_skipped=1, median_s=3.4)
     args.update(kw)
@@ -94,7 +94,7 @@ def _hostile_chunks():
     chunks = [(name, build_chunk(_header(), [row])) for name, row in rows.items()]
     chunks += [(name, build_chunk(_header(comment=text), [])) for name, text in comments.items()]
     chunks.append(("build tag with a newline", build_chunk(_header(build="tag\n"), [])))
-    chunks.append(("obscode with surrounding space", build_chunk(_header(obscode=" lgeb "), [])))
+    chunks.append(("obscode with surrounding space", build_chunk(_header(obscode=" xxxx "), [])))
     chunks.append(("site on the 0..360 convention", build_chunk(_header(site_lon=359.6), [])))
     chunks.append(("final page_closed with hidden time",
                    build_chunk(_header(), [], seq=7, final=True, outcome="page_closed",

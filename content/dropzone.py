@@ -1,4 +1,4 @@
-"""The three anywidgets the dashboard is built from.
+"""The four anywidgets the dashboard is built from.
 
 All share one ESM (`dropzone.js`) and pick their renderer off the `_role`
 trait, so there is a single JS file for Node to import in `tests/js`.
@@ -85,3 +85,24 @@ class ConsentCheckbox(anywidget.AnyWidget):
     heading = traitlets.Unicode("Send diagnostic reports?").tag(sync=True)
     # The dialog's body. Our own markup, never tester text.
     consent_html = traitlets.Unicode("").tag(sync=True)
+
+
+class SettingsStore(anywidget.AnyWidget):
+    """The telescope chooser's memory: settings kept in the browser.
+
+    Shows nothing. The kernel is a web worker with no localStorage, so the
+    page reads it: on the first render after a page load it sets `settings`
+    to what was saved (``{}`` if nothing, or storage is blocked) and
+    `loaded` to True, and from then on it saves every `settings` the kernel
+    sends. Until `loaded` the kernel must not write `settings`, or it would
+    overwrite what the browser remembers before reading it.
+
+    The shape is the view's business (`DashboardView`): the last telescope,
+    the observer code, and each telescope's site values.
+    """
+
+    _esm = _ESM
+    _css = _CSS
+    _role = traitlets.Unicode("settings").tag(sync=True)
+    settings = traitlets.Dict().tag(sync=True)
+    loaded = traitlets.Bool(False).tag(sync=True)

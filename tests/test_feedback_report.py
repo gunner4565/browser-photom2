@@ -65,7 +65,7 @@ def valid(validator, chunk):
 
 
 def header(**kw):
-    args = dict(report_id=REPORT_ID, obscode="LGEB", site_lat=39.7, site_lon=-105.2,
+    args = dict(report_id=REPORT_ID, obscode="XXXX", site_lat=39.7, site_lon=-105.2,
                 build="bandaid-d6ba44a.browser-photom-4840cff-dirty", qa_schema=1,
                 comment="", n_total=3, n_processed=1, n_skipped=1, median_s=3.4)
     args.update(kw)
@@ -224,7 +224,7 @@ def test_site_degrees(value, limit, expected):
     assert site_degrees(value, limit) == expected
 
 
-@pytest.mark.parametrize("code", ["LGEB", "lgeb", "X1", "ABCDEFGHIJ"])
+@pytest.mark.parametrize("code", ["XXXX", "xxxx", "X1", "ABCDEFGHIJ"])
 def test_obscode_problem_accepts_real_codes(code):
     assert obscode_problem(code) is None
 

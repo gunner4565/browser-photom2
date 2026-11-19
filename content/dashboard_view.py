@@ -21,7 +21,7 @@ from pathlib import Path
 import ipywidgets as W
 from IPython.display import display
 
-from dropzone import ConsentCheckbox, DropZone, ZipDownload
+from dropzone import ConsentCheckbox, DropZone, SettingsStore, ZipDownload
 from feedback_report import (
     ROWS_PER_CHUNK,
     build_chunk,
@@ -45,13 +45,17 @@ from photom_dashboard import (
     running_notice,
     validate_metadata,
 )
+from scope_profiles import FIELD_ORDER, display_name, load_profiles
 
 INSTRUCTIONS = f"""
 <h2 style="margin-top:0">Seestar photometry</h2>
 <ol style="margin-top:0.5em;line-height:1.6">
-  <li>Enter your <b>AAVSO observer code</b> and the <b>elevation</b> of your
-      observing site. Latitude and longitude are read from the image headers;
-      fill them in only to override what the headers say.</li>
+  <li>Choose your <b>telescope</b>, then enter your <b>AAVSO observer
+      code</b> and the <b>elevation</b> of your observing site. The form asks
+      only for what your telescope's image headers don't record (the Seestar
+      records latitude and longitude). This browser remembers what you enter,
+      so next time it is filled in for you; change it if you are observing
+      from somewhere else.</li>
   <li>Drag a <b>folder</b> of FITS frames of a <b>single object</b> onto the
       drop zone below.  The folder can have a single night or multiple nights
       of observations.</li>
@@ -132,8 +136,16 @@ class DashboardView:
         tmpdir="/tmp",
         chunk_bytes=CHUNK_BYTES,
         report_url=None,
+        profiles=None,
     ):
         self.results_dir = results_dir
+        # {telescope name: form keys its headers cannot fill}, from bandaid's
+        # bundled profiles (scope_profiles); `profiles` overrides, for tests.
+        # Empty when none can be found: the chooser is hidden and every
+        # field is shown, as before the chooser existed.
+        self._profiles = load_profiles() if profiles is None else dict(profiles)
+        # True while the chooser rewrites several fields (see _on_telescope).
+        self._switching = False
         self._meta = {}
         self._log = deque(maxlen=LOG_LINES)
         # Frames counted in the collapsed cooldown line and the line as last
@@ -212,24 +224,44 @@ class DashboardView:
 
     def _build(self):
         style = {"description_width": "150px"}
-        layout = W.Layout(width="380px")
-        self.observer = W.Text(description="Observer code", style=style, layout=layout,
-                               placeholder="e.g. LGEB")
+        # One Layout per field, never shared: the chooser hides fields by
+        # setting layout.display, which would hide every widget sharing it.
+        def layout():
+            return W.Layout(width="380px")
+
+        self.telescope = W.Dropdown(
+            description="Telescope", style=style, layout=layout(),
+            options=[(display_name(n), n) for n in self._profiles],
+        )
+        _show(self.telescope, bool(self._profiles))
+        self.observer = W.Text(description="Observer code", style=style, layout=layout(),
+                               placeholder="e.g. XXXX")
         self.elevation = W.Text(description="Site elevation (m)", style=style,
-                                layout=layout, placeholder="e.g. 1675")
+                                layout=layout(), placeholder="e.g. 1675")
         self.latitude = W.Text(description="Latitude (deg N)", style=style,
-                               layout=layout, placeholder="optional — from header")
+                               layout=layout(), placeholder="optional — from header")
         self.longitude = W.Text(description="Longitude (deg E)", style=style,
-                                layout=layout, placeholder="optional — from header")
-        for field in (self.observer, self.elevation, self.latitude, self.longitude):
+                                layout=layout(), placeholder="optional — from header")
+        self._fields = dict(zip(
+            FIELD_ORDER, (self.observer, self.elevation, self.latitude, self.longitude)
+        ))
+        for field in self._fields.values():
             field.observe(lambda _change: self._validate(), names="value")
+        # Remembered settings, read from the browser once the page renders
+        # the store (see _on_settings_loaded).
+        self.settings_store = SettingsStore()
+        self.settings_store.observe(self._on_settings_loaded, names="loaded")
+        self.telescope.observe(self._on_telescope, names="value")
+        self._apply_telescope()
 
         self.errors = W.HTML()
         self._build_report_form()
         self.setup_panel = W.VBox([
             W.HTML(INSTRUCTIONS),
-            W.VBox([self.observer, self.elevation, self.latitude, self.longitude]),
+            W.VBox([self.telescope, self.observer, self.elevation,
+                    self.latitude, self.longitude]),
             self.errors,
+            self.settings_store,
             self.report_box,
         ])
 
@@ -335,6 +367,110 @@ class DashboardView:
         return self
 
     # -- form --------------------------------------------------------------
+    #
+    # The telescope chooser shows only the fields the chosen telescope's
+    # headers cannot fill, and pre-fills them from the settings the browser
+    # remembers (`SettingsStore`): the observer code, shared by every
+    # telescope, and each telescope's own site values. Every time the form
+    # validates, what it holds is saved back, so a value typed over a
+    # remembered one (another site, say) is what is remembered next time.
+
+    def _apply_telescope(self):
+        """Show the chosen telescope's fields; blank the ones it hides.
+
+        A hidden latitude or longitude left filled would still override the
+        header, unseen, so it is cleared. With no profiles, all are shown.
+        """
+        name = self.telescope.value
+        wanted = self._profiles.get(name, FIELD_ORDER) if self._profiles else FIELD_ORDER
+        for key, field in self._fields.items():
+            visible = key in wanted
+            _show(field, visible)
+            if not visible:
+                field.value = ""
+
+    def _saved(self):
+        """What the browser remembers, as ``(observer, {telescope: {key: value}})``.
+
+        Whatever storage held is checked, since it is only data: a part of
+        the wrong type reads as missing.
+        """
+        settings = self.settings_store.settings
+        observer = settings.get("observer")
+        scopes = settings.get("scopes")
+        return (
+            observer if isinstance(observer, str) else "",
+            scopes if isinstance(scopes, dict) else {},
+        )
+
+    def _fill(self, *, overwrite_site):
+        """Fill the visible fields from the remembered settings.
+
+        The observer code only fills an empty box. Site fields fill an
+        empty box too, or, on a change of telescope (``overwrite_site``),
+        replace what is there: those values belonged to the other telescope.
+        """
+        if not self.settings_store.loaded:
+            return
+        observer, scopes = self._saved()
+        if observer and not self.observer.value.strip():
+            self.observer.value = observer
+        site = scopes.get(self.telescope.value)
+        site = site if isinstance(site, dict) else {}
+        for key, field in self._fields.items():
+            if key == "observer" or field.layout.display == "none":
+                continue
+            value = site.get(key)
+            value = str(value) if isinstance(value, (str, int, float)) else ""
+            if overwrite_site or not field.value.strip():
+                field.value = value
+
+    def _on_telescope(self, _change):
+        # Each field set below validates the form; until every one is set
+        # the form mixes two telescopes' values, so nothing may be saved.
+        self._switching = True
+        try:
+            self._apply_telescope()
+            self._fill(overwrite_site=True)
+        finally:
+            self._switching = False
+        self._validate()
+
+    def _on_settings_loaded(self, change):
+        if not change["new"]:
+            return
+        name = self.settings_store.settings.get("telescope")
+        if name in self._profiles and name != self.telescope.value:
+            self.telescope.value = name  # _on_telescope fills the form
+            return
+        self._switching = True
+        try:
+            self._fill(overwrite_site=False)
+        finally:
+            self._switching = False
+        self._validate()
+
+    def _remember(self):
+        """Save the form to the browser, once it has been read from there."""
+        store = self.settings_store
+        name = self.telescope.value
+        if self._switching or not store.loaded or name not in self._profiles:
+            return
+        _observer, scopes = self._saved()
+        scopes = dict(scopes)
+        scopes[name] = {
+            key: self._fields[key].value.strip()
+            for key in self._profiles[name]
+            if key != "observer"
+        }
+        settings = {
+            **store.settings,
+            "telescope": name,
+            "observer": self.observer.value.strip().upper(),
+            "scopes": scopes,
+        }
+        if settings != store.settings:
+            store.settings = settings
 
     def _validate(self):
         meta, errors = validate_metadata(
@@ -347,6 +483,8 @@ class DashboardView:
         # if the form is edited between folders.
         self._meta.clear()
         self._meta.update(meta)
+        if not errors:
+            self._remember()
         self.drop_zone.armed = not errors
         self.drop_zone.hint = (
             "Drag a folder of FITS images here"

@@ -13,15 +13,15 @@ from photom_dashboard import FORM_METADATA_KEYS, validate_metadata
 
 
 def test_minimal_valid_input():
-    meta, errors = validate_metadata(observer="lgeb", site_elev=1675)
+    meta, errors = validate_metadata(observer="xxxx", site_elev=1675)
     assert errors == []
-    assert meta == {"observer": "LGEB", "site_elev": 1675.0}
+    assert meta == {"observer": "XXXX", "site_elev": 1675.0}
 
 
 def test_observer_is_trimmed_and_uppercased():
-    meta, errors = validate_metadata(observer="  lgeb  ", site_elev="1675")
+    meta, errors = validate_metadata(observer="  xxxx  ", site_elev="1675")
     assert errors == []
-    assert meta["observer"] == "LGEB"
+    assert meta["observer"] == "XXXX"
 
 
 @pytest.mark.parametrize("blank", [None, "", "   "])
@@ -33,13 +33,13 @@ def test_observer_required(blank):
 
 @pytest.mark.parametrize("blank", [None, "", "   "])
 def test_elevation_required(blank):
-    meta, errors = validate_metadata(observer="LGEB", site_elev=blank)
+    meta, errors = validate_metadata(observer="XXXX", site_elev=blank)
     assert "site_elev" not in meta
     assert any("elevation" in e.lower() for e in errors)
 
 
 def test_elevation_must_be_numeric():
-    meta, errors = validate_metadata(observer="LGEB", site_elev="high up")
+    meta, errors = validate_metadata(observer="XXXX", site_elev="high up")
     assert "site_elev" not in meta
     assert any("number" in e.lower() for e in errors)
 
@@ -48,7 +48,7 @@ def test_elevation_must_be_numeric():
 def test_non_finite_elevation_is_rejected(text):
     # float() accepts all of these, and nothing downstream would catch them:
     # site_elev has no range check at all.
-    meta, errors = validate_metadata(observer="LGEB", site_elev=text)
+    meta, errors = validate_metadata(observer="XXXX", site_elev=text)
     assert "site_elev" not in meta
     assert any("number" in e.lower() for e in errors)
 
@@ -58,7 +58,7 @@ def test_non_finite_lat_lon_are_rejected(value):
     # The range check is `abs(value) > limit`, which is False for NaN -- so
     # without an explicit finiteness test a NaN latitude passes validation.
     meta, errors = validate_metadata(
-        observer="LGEB", site_elev=1675, site_lat=value, site_lon=value
+        observer="XXXX", site_elev=1675, site_lat=value, site_lon=value
     )
     assert "site_lat" not in meta
     assert "site_lon" not in meta
@@ -67,14 +67,14 @@ def test_non_finite_lat_lon_are_rejected(value):
 
 @pytest.mark.parametrize("flag", [True, False])
 def test_booleans_are_not_numbers(flag):
-    meta, errors = validate_metadata(observer="LGEB", site_elev=flag)
+    meta, errors = validate_metadata(observer="XXXX", site_elev=flag)
     assert "site_elev" not in meta
     assert any("number" in e.lower() for e in errors)
 
 
 def test_negative_elevation_is_allowed():
     # Below sea level is a real place to observe from (Dead Sea, Death Valley).
-    meta, errors = validate_metadata(observer="LGEB", site_elev=-50)
+    meta, errors = validate_metadata(observer="XXXX", site_elev=-50)
     assert errors == []
     assert meta["site_elev"] == -50.0
 
@@ -82,7 +82,7 @@ def test_negative_elevation_is_allowed():
 @pytest.mark.parametrize("blank", [None, "", "   "])
 def test_blank_lat_lon_are_omitted_so_the_header_supplies_them(blank):
     meta, errors = validate_metadata(
-        observer="LGEB", site_elev=1675, site_lat=blank, site_lon=blank
+        observer="XXXX", site_elev=1675, site_lat=blank, site_lon=blank
     )
     assert errors == []
     assert "site_lat" not in meta
@@ -99,7 +99,7 @@ def test_a_full_form_fills_exactly_the_form_metadata_keys():
 
 def test_supplied_lat_lon_override():
     meta, errors = validate_metadata(
-        observer="LGEB", site_elev=1675, site_lat="30.5952", site_lon="-103.936"
+        observer="XXXX", site_elev=1675, site_lat="30.5952", site_lon="-103.936"
     )
     assert errors == []
     assert meta["site_lat"] == pytest.approx(30.5952)
@@ -108,28 +108,28 @@ def test_supplied_lat_lon_override():
 
 @pytest.mark.parametrize("lat", [90.1, -90.1, 1000])
 def test_latitude_range_checked(lat):
-    meta, errors = validate_metadata(observer="LGEB", site_elev=1675, site_lat=lat)
+    meta, errors = validate_metadata(observer="XXXX", site_elev=1675, site_lat=lat)
     assert "site_lat" not in meta
     assert any("latitude" in e.lower() for e in errors)
 
 
 @pytest.mark.parametrize("lon", [180.1, -180.1, 1000])
 def test_longitude_range_checked(lon):
-    meta, errors = validate_metadata(observer="LGEB", site_elev=1675, site_lon=lon)
+    meta, errors = validate_metadata(observer="XXXX", site_elev=1675, site_lon=lon)
     assert "site_lon" not in meta
     assert any("longitude" in e.lower() for e in errors)
 
 
 @pytest.mark.parametrize("edge", [90, -90])
 def test_latitude_bounds_are_inclusive(edge):
-    meta, errors = validate_metadata(observer="LGEB", site_elev=1675, site_lat=edge)
+    meta, errors = validate_metadata(observer="XXXX", site_elev=1675, site_lat=edge)
     assert errors == []
     assert meta["site_lat"] == float(edge)
 
 
 def test_non_numeric_lat_lon_reported():
     meta, errors = validate_metadata(
-        observer="LGEB", site_elev=1675, site_lat="north", site_lon="west"
+        observer="XXXX", site_elev=1675, site_lat="north", site_lon="west"
     )
     assert "site_lat" not in meta
     assert "site_lon" not in meta

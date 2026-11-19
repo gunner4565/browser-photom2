@@ -28,7 +28,7 @@ function header(overrides = {}) {
     report_id: '0123456789abcdef0123456789abcdef',
     build: 'bandaid-d6ba44a.browser-photom-4840cff',
     qa_schema: 1,
-    obscode: 'LGEB',
+    obscode: 'XXXX',
     site_lat: 40,
     site_lon: -105,
     comment: '',

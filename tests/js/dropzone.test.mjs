@@ -20,6 +20,9 @@ import {
   isViewportExit,
   readSkipTabWarning,
   writeSkipTabWarning,
+  SCOPE_SETTINGS_KEY,
+  readScopeSettings,
+  writeScopeSettings,
   makeTabWatch,
 } from '../../content/dropzone.js';
 
@@ -817,4 +820,39 @@ test('every cancel the loop sends goes through cancelMessage', () => {
   // run.failure is meant to record).
   assert.ok(src.includes("cancelMessage(err && err.fromKernel ? 'error' : 'upload', text)"));
   assert.ok(src.includes("{ fromKernel: true }"));
+});
+
+// ---------------------------------------------------------------------
+// readScopeSettings / writeScopeSettings (the telescope chooser's memory)
+// ---------------------------------------------------------------------
+
+test('readScopeSettings is {} for missing storage, nothing saved, and a throwing getItem', () => {
+  assert.deepEqual(readScopeSettings(null), {});
+  assert.deepEqual(readScopeSettings(fakeStorage()), {});
+  assert.deepEqual(readScopeSettings(throwingStorage()), {});
+});
+
+test('readScopeSettings is {} when what is saved is not a JSON object', () => {
+  for (const raw of ['{broken', '[1,2]', '"text"', 'null', '42']) {
+    const storage = fakeStorage();
+    storage.setItem(SCOPE_SETTINGS_KEY, raw);
+    assert.deepEqual(readScopeSettings(storage), {}, raw);
+  }
+});
+
+test('writeScopeSettings round-trips through readScopeSettings under the versioned key', () => {
+  const storage = fakeStorage();
+  const settings = {
+    telescope: 'Seestar50',
+    observer: 'XXXX',
+    scopes: { Seestar50: { site_elev: '1675' } },
+  };
+  assert.equal(writeScopeSettings(storage, settings), true);
+  assert.deepEqual(readScopeSettings(storage), settings);
+  assert.match(SCOPE_SETTINGS_KEY, /^browser-photom:/);
+});
+
+test('writeScopeSettings reports failure for missing or throwing storage', () => {
+  assert.equal(writeScopeSettings(null, {}), false);
+  assert.equal(writeScopeSettings(throwingStorage(), {}), false);
 });

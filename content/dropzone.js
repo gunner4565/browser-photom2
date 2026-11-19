@@ -1,9 +1,10 @@
 // anywidget front end for the drag-and-drop photometry dashboard.
 //
-// Three widget classes share this one module, dispatched on the `_role`
+// Four widget classes share this one module, dispatched on the `_role`
 // model trait: the folder drop zone that streams FITS frames to the
-// kernel, a "download zip" button, and the tester-report opt-in box that
-// confirms in a dialog before it ticks. Plain ESM, no build step, no
+// kernel, a "download zip" button, the tester-report opt-in box that
+// confirms in a dialog before it ticks, and the telescope chooser's
+// settings memory (localStorage), which shows nothing. Plain ESM, no build step, no
 // module-level DOM access, so this file can be imported directly by
 // `node --test` as well as by anywidget in the browser.
 
@@ -337,6 +338,48 @@ export function writeSkipTabWarning(storage, value) {
     return true;
   } catch (err) {
     return false;
+  }
+}
+
+// The telescope chooser's remembered settings (`SettingsStore` in
+// dropzone.py): the last telescope, the observer code, and each
+// telescope's site values, as one JSON object.
+export const SCOPE_SETTINGS_KEY = 'browser-photom:dashboard:scope-settings:v1';
+
+/**
+ * The saved settings object, or {} when there is none, storage is missing
+ * or throws, or what is saved is not a JSON object.
+ */
+export function readScopeSettings(storage) {
+  try {
+    if (!storage) return {};
+    const raw = storage.getItem(SCOPE_SETTINGS_KEY);
+    if (!raw) return {};
+    const value = JSON.parse(raw);
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch (err) {
+    return {};
+  }
+}
+
+/** Save the settings object; returns whether it stuck. */
+export function writeScopeSettings(storage, settings) {
+  if (!storage) return false;
+  try {
+    storage.setItem(SCOPE_SETTINGS_KEY, JSON.stringify(settings ?? {}));
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+// Merely touching window.localStorage can throw SecurityError when site
+// data is blocked; the read/write helpers then see null and fall back.
+function windowStorage() {
+  try {
+    return window.localStorage;
+  } catch (err) {
+    return null;
   }
 }
 
@@ -1925,10 +1968,29 @@ function renderConsent({ model, el }) {
   };
 }
 
+// The telescope chooser's memory (`SettingsStore` in dropzone.py). Shows
+// nothing. The first render after a page load hands the kernel what
+// localStorage holds and sets `loaded`; from then on every `settings` the
+// kernel pushes is written back. A re-render skips the read, so it cannot
+// put stale values over what the kernel has since saved.
+function renderSettings({ model, el }) {
+  el.innerHTML = '';
+  const storage = windowStorage();
+  if (!model.get('loaded')) {
+    model.set('settings', readScopeSettings(storage));
+    model.set('loaded', true);
+    model.save_changes();
+  }
+  const save = () => writeScopeSettings(storage, model.get('settings'));
+  model.on('change:settings', save);
+  return () => model.off('change:settings', save);
+}
+
 function render({ model, el, signal }) {
   const role = model.get('_role');
   if (role === 'zip') return renderZip({ model, el });
   if (role === 'consent') return renderConsent({ model, el });
+  if (role === 'settings') return renderSettings({ model, el });
   return renderDropZone({ model, el, signal });
 }
 

@@ -52,7 +52,7 @@ def view(tmp_path):
     assert [c for c in v.sent if c.get("type") == "error"] == []
 
 
-def fill(view, observer="lgeb", elev="1675", lat="", lon=""):
+def fill(view, observer="xxxx", elev="1675", lat="", lon=""):
     view.observer.value = observer
     view.elevation.value = elev
     view.latitude.value = lat
@@ -172,9 +172,9 @@ def test_the_preview_before_any_run_is_a_valid_header_with_the_next_runs_id(view
     assert view.report_preview_button.description == "Hide preview"
     chunk = assert_valid(view.preview_chunk())
     assert chunk["rows"] == [] and chunk["seq"] == 0 and chunk["final"] is False
-    assert chunk["obscode"] == "LGEB"
+    assert chunk["obscode"] == "XXXX"
     assert (chunk["site_lat"], chunk["site_lon"]) == (40, -105)
-    assert "LGEB" in view.report_preview.value
+    assert "XXXX" in view.report_preview.value
     # Opting in and running uses the id the preview showed.
     view.report_opt_in.value = True
     manifest(view, "a.fit")
@@ -656,13 +656,13 @@ def test_the_obscode_and_form_site_are_fixed_when_the_reported_run_starts(view):
     view._meta.pop("site_lat")
     upload(view, "b.fit")
     headers = [m["header"] for m in reports(view)]
-    assert {h["obscode"] for h in headers} == {"LGEB"}
+    assert {h["obscode"] for h in headers} == {"XXXX"}
     assert {h["site_lat"] for h in headers} == {40}
     # After the run the preview still shows what was sent ...
-    assert view.preview_chunk()["obscode"] == "LGEB"
+    assert view.preview_chunk()["obscode"] == "XXXX"
     # ... and a now-invalid observer code does not hide it.
     view.observer.value = ""
-    assert view.preview_chunk()["obscode"] == "LGEB"
+    assert view.preview_chunk()["obscode"] == "XXXX"
     # The next run reads the form afresh.
     view.observer.value = "xyz"
     manifest(view, "c.fit", folder="night2")
@@ -727,7 +727,7 @@ def test_the_preview_never_shows_the_report_id(view):
     assert sent_id == before["report_id"]
     assert sent_id not in view.report_preview.value
     assert "not shown" in view.report_preview.value
-    assert '"obscode": "LGEB"' in view.report_preview.value   # the rest is there
+    assert '"obscode": "XXXX"' in view.report_preview.value   # the rest is there
 
 
 def test_the_preview_of_a_run_that_died_before_any_frame_says_so(view):
